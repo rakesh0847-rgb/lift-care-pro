@@ -1,55 +1,93 @@
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
 
 class AuthService {
   AuthService._();
 
   static final AuthService instance = AuthService._();
 
-  static const String _signedInKey = 'liftcare_signed_in';
-  static const String _emailKey = 'liftcare_user_email';
+  static const _emailKey = 'admin_email';
+  static const _passwordKey = 'admin_password_hash';
+  static const _sessionKey = 'user_logged_in';
 
-  bool _isSignedIn = false;
+  bool _isLoggedIn = false;
   String _email = '';
 
-  bool get isSignedIn => _isSignedIn;
-
+  bool get isLoggedIn => _isLoggedIn;
   String get email => _email;
 
   String get companyName => 'PR Lifts';
 
-  String get companyCode => 'PR-LIFTS';
+  String _hashPassword(String password) {
+    return sha256.convert(utf8.encode(password)).toString();
+  }
 
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
-
-    _isSignedIn = prefs.getBool(_signedInKey) ?? false;
+    _isLoggedIn = prefs.getBool(_sessionKey) ?? false;
     _email = prefs.getString(_emailKey) ?? '';
+  }
+
+  Future<bool> get isAdminRegistered async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey(_passwordKey);
+  }
+
+  Future<void> registerAdmin({
+    required String email,
+    required String password,
+  }) async {
+    if (email.trim().isEmpty || password.length < 8) {
+      throw Exception('Enter email and password (minimum 8 characters)');
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+
+    if (prefs.containsKey(_passwordKey)) {
+      throw Exception('Admin account already exists');
+    }
+
+    await prefs.setString(_emailKey, email.trim());
+    await prefs.setString(
+      _passwordKey,
+      _hashPassword(password),
+    );
+
+    _email = email.trim();
   }
 
   Future<void> signIn({
     required String email,
     required String password,
   }) async {
-    if (email.trim().isEmpty || password.isEmpty) {
-      throw Exception('Email and password are required');
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedEmail = prefs.getString(_emailKey);
+    final savedHash = prefs.getString(_passwordKey);
+
+    if (savedEmail == null || savedHash == null) {
+      throw Exception('Please register admin account first');
     }
 
-    // Cloud authentication will be connected
-    // through Supabase in the next backend phase.
-    throw Exception(
-      'Cloud login is not configured yet. '
-      'Please complete the Supabase setup.',
-    );
+    if (savedEmail != email.trim() ||
+        savedHash != _hashPassword(password)) {
+      throw Exception('Invalid email or password');
+    }
+
+    await prefs.setBool(_sessionKey, true);
+
+    _isLoggedIn = true;
+    _email = savedEmail;
   }
 
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.setBool(_signedInKey, false);
-    await prefs.remove(_emailKey);
+    await prefs.setBool(_sessionKey, false);
 
-    _isSignedIn = false;
+    _isLoggedIn = false;
     _email = '';
   }
 }
