@@ -1,7 +1,8 @@
+
 name: liftcare_pro
-description: Multi-company lift maintenance management app.
+description: LiftCare Pro - Offline Lift Maintenance Management
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -9,12 +10,19 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
   cupertino_icons: ^1.0.8
-  supabase_flutter: ^2.9.1
   shared_preferences: ^2.5.3
   sqflite: ^2.4.2
   path: ^1.9.1
+  path_provider: ^2.1.5
   intl: ^0.20.2
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  image_picker: ^1.1.2
+  signature: ^5.5.0
+  share_plus: ^10.1.4
+  archive: ^4.0.7
 
 dev_dependencies:
   flutter_test:
