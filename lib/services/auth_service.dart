@@ -18,29 +18,19 @@ class AuthService {
   String _companyCode = 'PRL-0001';
 
   bool get isLoggedIn => _isLoggedIn;
-
-  // Compatibility with main.dart
   bool get isSignedIn => _isLoggedIn;
-
   String get email => _email;
-
   String get companyName => 'PR Lifts';
-
   String get companyCode => _companyCode;
 
-  String _hashPassword(String password) {
-    return sha256.convert(utf8.encode(password)).toString();
-  }
+  String _hashPassword(String password) =>
+      sha256.convert(utf8.encode(password)).toString();
 
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
-
     _isLoggedIn = prefs.getBool(_sessionKey) ?? false;
     _email = prefs.getString(_emailKey) ?? '';
-
-    _companyCode =
-        prefs.getString(_companyCodeKey) ?? 'PRL-0001';
-
+    _companyCode = prefs.getString(_companyCodeKey) ?? 'PRL-0001';
     await prefs.setString(_companyCodeKey, _companyCode);
   }
 
@@ -54,9 +44,7 @@ class AuthService {
     required String password,
   }) async {
     if (email.trim().isEmpty || password.length < 8) {
-      throw Exception(
-        'Enter email and password (minimum 8 characters)',
-      );
+      throw Exception('Enter email and password (minimum 8 characters)');
     }
 
     final prefs = await SharedPreferences.getInstance();
@@ -66,12 +54,11 @@ class AuthService {
     }
 
     await prefs.setString(_emailKey, email.trim());
-    await prefs.setString(
-      _passwordKey,
-      _hashPassword(password),
-    );
+    await prefs.setString(_passwordKey, _hashPassword(password));
+    await prefs.setBool(_sessionKey, true);
 
     _email = email.trim();
+    _isLoggedIn = true;
   }
 
   Future<void> signIn({
@@ -93,16 +80,13 @@ class AuthService {
     }
 
     await prefs.setBool(_sessionKey, true);
-
     _isLoggedIn = true;
     _email = savedEmail;
   }
 
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setBool(_sessionKey, false);
-
     _isLoggedIn = false;
     _email = '';
   }
