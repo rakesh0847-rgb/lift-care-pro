@@ -118,18 +118,44 @@ class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _confirmPassword = TextEditingController();
 
   bool _busy = false;
+  bool _checking = true;
+  bool _registered = false;
   String? _error;
 
-  String t(String en, String ml) {
-    return widget.locale.languageCode == 'ml' ? ml : en;
+  String t(String en, String ml) =>
+      widget.locale.languageCode == 'ml' ? ml : en;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdmin();
+  }
+
+  Future<void> _checkAdmin() async {
+    try {
+      final exists = await AuthService.instance.isAdminRegistered;
+      if (!mounted) return;
+      setState(() {
+        _registered = exists;
+        _checking = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+        _checking = false;
+      });
+    }
   }
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _confirmPassword.dispose();
     super.dispose();
   }
 
@@ -142,14 +168,21 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     try {
-      await AuthService.instance.signIn(
-        email: _email.text.trim(),
-        password: _password.text,
-      );
-
-      if (AuthService.instance.isSignedIn) {
-        widget.onSignedIn();
+      if (_registered) {
+        await AuthService.instance.signIn(
+          email: _email.text.trim(),
+          password: _password.text,
+        );
+      } else {
+        await AuthService.instance.registerAdmin(
+          email: _email.text.trim(),
+          password: _password.text,
+        );
+        _registered = true;
       }
+
+      if (!mounted) return;
+      widget.onSignedIn();
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -157,14 +190,18 @@ class _AuthScreenState extends State<AuthScreen> {
         });
       }
     } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_checking) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -206,23 +243,25 @@ class _AuthScreenState extends State<AuthScreen> {
                     style: const TextStyle(color: Colors.black54),
                   ),
                   const SizedBox(height: 8),
-                  Text(
+                  const Text(
                     'PR Lifts',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.blue.shade800,
-                      fontWeight: FontWeight.w700,
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 30),
                   Text(
-                    t('Staff Login', 'സ്റ്റാഫ് ലോഗിൻ'),
+                    _registered
+                        ? t('Admin Login', 'അഡ്മിൻ ലോഗിൻ')
+                        : t('Admin Registration', 'അഡ്മിൻ രജിസ്ട്രേഷൻ'),
                     style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   Form(
                     key: _formKey,
                     child: Column(
@@ -230,51 +269,82 @@ class _AuthScreenState extends State<AuthScreen> {
                         TextFormField(
                           controller: _email,
                           keyboardType: TextInputType.emailAddress,
+                          autofillHints: const [AutofillHints.email],
                           decoration: InputDecoration(
                             labelText: t('Email', 'ഇമെയിൽ'),
                             prefixIcon: const Icon(Icons.email_outlined),
                           ),
-                          validator: (v) {
-                            return (v == null || !v.contains('@'))
-                                ? t(
-                                    'Enter a valid email',
-                                    'ശരിയായ ഇമെയിൽ നൽകുക',
-                                  )
-                                : null;
+                          validator: (value) {
+                            final email = value?.trim() ?? '';
+                            if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                                .hasMatch(email)) {
+                              return t(
+                                'Enter a valid email',
+                                'ശരിയായ ഇമെയിൽ നൽകുക',
+                              );
+                            }
+                            return null;
                           },
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
                         TextFormField(
                           controller: _password,
                           obscureText: true,
+                          autofillHints: _registered
+                              ? const [AutofillHints.password]
+                              : const [AutofillHints.newPassword],
                           decoration: InputDecoration(
                             labelText: t('Password', 'പാസ്‌വേഡ്'),
                             prefixIcon: const Icon(Icons.lock_outline),
                           ),
-                          validator: (v) {
-                            return (v == null || v.length < 8)
-                                ? t(
-                                    'Enter your password (minimum 8 characters)',
-                                    'കുറഞ്ഞത് 8 അക്ഷരമുള്ള പാസ്‌വേഡ് നൽകുക',
-                                  )
-                                : null;
+                          validator: (value) {
+                            if (value == null || value.length < 8) {
+                              return t(
+                                'Minimum 8 characters required',
+                                'കുറഞ്ഞത് 8 അക്ഷരങ്ങൾ വേണം',
+                              );
+                            }
+                            return null;
                           },
                         ),
+                        if (!_registered) ...[
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _confirmPassword,
+                            obscureText: true,
+                            decoration: InputDecoration(
+                              labelText: t(
+                                'Confirm Password',
+                                'പാസ്‌വേഡ് വീണ്ടും നൽകുക',
+                              ),
+                              prefixIcon: const Icon(Icons.lock_reset),
+                            ),
+                            validator: (value) {
+                              if (value != _password.text) {
+                                return t(
+                                  'Passwords do not match',
+                                  'പാസ്‌വേഡുകൾ ഒരുപോലെയല്ല',
+                                );
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
                       ],
                     ),
                   ),
                   if (_error != null) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     Text(
                       _error!,
                       style: const TextStyle(color: Colors.red),
                     ),
                   ],
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 22),
                   FilledButton(
                     onPressed: _busy ? null : _submit,
                     child: Padding(
-                      padding: const EdgeInsets.all(13),
+                      padding: const EdgeInsets.all(14),
                       child: _busy
                           ? const SizedBox(
                               height: 20,
@@ -283,26 +353,21 @@ class _AuthScreenState extends State<AuthScreen> {
                                 strokeWidth: 2,
                               ),
                             )
-                          : Text(t('Login', 'ലോഗിൻ')),
+                          : Text(
+                              _registered
+                                  ? t('Login', 'ലോഗിൻ')
+                                  : t(
+                                      'Create Admin Account',
+                                      'അഡ്മിൻ അക്കൗണ്ട് സൃഷ്ടിക്കുക',
+                                    ),
+                            ),
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 18),
                   Text(
                     t(
-                      'This first release is configured for PR Lifts. Staff accounts are created by the administrator. Public company registration is disabled until the multi-company release.',
-                      'ഈ ആദ്യ പതിപ്പ് PR Lifts-നായി ക്രമീകരിച്ചിരിക്കുന്നു. സ്റ്റാഫ് അക്കൗണ്ടുകൾ അഡ്മിൻ സൃഷ്ടിക്കും. Multi-Company പതിപ്പ് തയ്യാറാകുന്നതുവരെ പൊതുവായ കമ്പനി രജിസ്ട്രേഷൻ പ്രവർത്തനരഹിതമാണ്.',
-                    ),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    t(
-                      'Internet is required to sign in. Offline service entry and sync features will be added in the upcoming phases.',
-                      'ലോഗിൻ ചെയ്യാൻ ഇന്റർനെറ്റ് ആവശ്യമാണ്. ഓഫ്‌ലൈൻ സർവീസ് എൻട്രിയും സിങ്ക് സൗകര്യവും അടുത്ത ഘട്ടങ്ങളിൽ ചേർക്കും.',
+                      'This first release is configured for PR Lifts. Admin login and service data are stored locally on this device. Internet is not required for offline login.',
+                      'ഈ ആദ്യ പതിപ്പ് PR Lifts-നായി ക്രമീകരിച്ചിരിക്കുന്നു. അഡ്മിൻ ലോഗിനും സർവീസ് വിവരങ്ങളും ഈ ഉപകരണത്തിൽ തന്നെ സൂക്ഷിക്കുന്നു. ഓഫ്‌ലൈൻ ലോഗിന് ഇന്റർനെറ്റ് ആവശ്യമില്ല.',
                     ),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
