@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/app_config.dart';
 import 'services/local_store.dart';
 import 'services/auth_service.dart';
+import 'screens/dashboard_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,7 +76,7 @@ class _LiftCareAppState extends State<LiftCareApp> {
               body: Center(child: CircularProgressIndicator()),
             )
           : _signedIn
-              ? HomeScreen(
+              ? DashboardScreen(
                   locale: _locale,
                   onLanguageChanged: _setLanguage,
                   onSignOut: () async {
