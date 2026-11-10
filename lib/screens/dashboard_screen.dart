@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/customer_service.dart';
 import '../services/local_store.dart';
 import 'customers_screen.dart';
+import 'lifts_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Locale locale;
@@ -45,6 +46,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         AuthService.instance.companyCode,
       );
       final reports = LocalStore.instance.getRecords();
+
       if (!mounted) return;
       setState(() {
         customerCount = customers.length;
@@ -61,6 +63,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CustomersScreen(locale: widget.locale),
+      ),
+    );
+    if (mounted) await loadDashboard();
+  }
+
+  // Opens the existing Lift Management screen.
+  Future<void> openLifts() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LiftsScreen(locale: widget.locale),
       ),
     );
     if (mounted) await loadDashboard();
@@ -276,7 +288,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: t('Lifts', 'ലിഫ്റ്റുകൾ'),
                     subtitle: t('Lift management', 'ലിഫ്റ്റ് വിവരങ്ങൾ'),
                     color: const Color(0xFF8B5CF6),
-                    onTap: showComingSoon,
+                    onTap: openLifts,
                   ),
                   _MenuCard(
                     icon: Icons.assignment_rounded,
