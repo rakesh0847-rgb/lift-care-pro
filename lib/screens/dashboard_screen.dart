@@ -5,6 +5,7 @@ import '../services/customer_service.dart';
 import '../services/local_store.dart';
 import 'customers_screen.dart';
 import 'lifts_screen.dart';
+import 'service_reports_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Locale locale;
@@ -73,6 +74,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => LiftsScreen(locale: widget.locale),
+      ),
+    );
+    if (mounted) await loadDashboard();
+  }
+
+  // Opens the monthly Service Reports module.
+  Future<void> openServiceReports() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ServiceReportsScreen(locale: widget.locale),
       ),
     );
     if (mounted) await loadDashboard();
@@ -295,7 +306,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: t('Service Reports', 'സർവീസ് റിപ്പോർട്ടുകൾ'),
                     subtitle: t('Monthly maintenance', 'മാസ സർവീസ്'),
                     color: const Color(0xFF159D83),
-                    onTap: showComingSoon,
+                    onTap: openServiceReports,
                   ),
                   _MenuCard(
                     icon: Icons.engineering_rounded,
