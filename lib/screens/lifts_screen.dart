@@ -105,7 +105,7 @@ class _LiftsScreenState extends State<LiftsScreen> {
               decoration: InputDecoration(labelText: label, prefixIcon: const Icon(Icons.calendar_month, color: blue),
                 filled: true, fillColor: Colors.white,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: BorderSide.none)),
-              child: Text(dateText(value))));
+              child: Text(dateText(value)))));
 
           return Container(
             height: MediaQuery.of(ctx).size.height * .93,
