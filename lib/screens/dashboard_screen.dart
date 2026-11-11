@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../services/customer_service.dart';
-import '../services/local_store.dart';
 import 'customers_screen.dart';
 import 'lifts_screen.dart';
 import 'service_reports_screen.dart';
@@ -46,7 +45,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final customers = await CustomerService.instance.getCustomers(
         AuthService.instance.companyCode,
       );
-      final reports = LocalStore.instance.getRecords();
+      final reports = await ServiceReportStore.getReports(
+        AuthService.instance.companyCode,
+      );
 
       if (!mounted) return;
       setState(() {
