@@ -184,7 +184,7 @@ class _ServiceReportsScreenState extends State<ServiceReportsScreen> {
                           DateTime.now();
                       final done = (r['checklist'] as Map?)
                               ?.values
-                              .where((v) => v == true)
+                              .where((v) => v == true || v.toString() == 'Done')
                               .length ??
                           0;
                       final total =
@@ -255,7 +255,12 @@ class _ServiceReportFormScreenState extends State<ServiceReportFormScreen> {
   final formKey = GlobalKey<FormState>();
   final technicianController = TextEditingController();
   final notesController = TextEditingController();
+  final faultReasonController = TextEditingController();
+  final customerRemarksController = TextEditingController();
+  final officeUseController = TextEditingController();
   final imagePicker = ImagePicker();
+  String workType = 'Monthly Service';
+  final Map<String, TextEditingController> reasonControllers = {};
 
   List<Map<String, dynamic>> customers = [];
   List<Map<String, dynamic>> lifts = [];
@@ -268,24 +273,66 @@ class _ServiceReportFormScreenState extends State<ServiceReportFormScreen> {
   bool loading = true;
   bool saving = false;
 
-  static const List<String> checks = [
-    'Machine room / controller',
-    'Motor and gearbox',
-    'Brake operation',
-    'Door operation and sensors',
-    'Door locks and safety circuit',
-    'Car and landing indicators',
-    'Emergency alarm / bell',
-    'Emergency light',
-    'ARD / rescue operation',
-    'Car travelling and levelling',
-    'Guide rails and lubrication',
-    'Pit and top-of-car inspection',
-    'General cleaning',
-  ];
+  static const Map<String, List<String>> checklistGroups = {
+    'Machine Room': [
+      'Main Switch',
+      'Gear Oil Level',
+      'Motor Terminal tightness',
+      'Motor Feedback sensor',
+      'Main Rope / OSG Rope',
+      'Diverters',
+      'Brake operation / Liner',
+      'Controller cleaning',
+      'Controller wire tightness',
+      'Relay / contractor',
+      'Controller ventilation',
+      'M/c Room Earthing',
+      'M/c room light / fan',
+      'OSG operation',
+      'Clean Machine',
+      'M/c room door lock',
+    ],
+    'General & Car': [
+      'Emergency alarm',
+      'Emergency light',
+      'Intercom',
+      'Car calls',
+      'Other COP functions',
+      'Car indicator',
+      'Play in car',
+      'Car stopping & leveling',
+      'Ride comfort',
+      'Door operation/Delocking',
+      'Door sensor',
+      'LOP buttons',
+      'Landing indicator',
+      'Car and landing sill',
+      'Car light',
+      'Car fan',
+    ],
+    'Car Top & Pit': [
+      'Car top safety',
+      'Inspection box / lamp',
+      'Guide rail lubrication',
+      'Door lubrication',
+      'Door operator function',
+      'Door operator belt',
+      'Landing / car door track',
+      'Landing door smoothness',
+      'Clean car top',
+      'Guide shoe car / CWT',
+      'Car top / car bottom',
+      'Hoist way / car top wiring',
+      'Pit cleaning',
+      'Tension wt. / safety gear',
+      'Buffer / cwt run by',
+      'Landing car door lock',
+    ],
+  };
 
-  final Map<String, bool> checklist = {
-    for (final item in checks) item: false,
+  final Map<String, String> checklist = {
+    for (final items in checklistGroups.values)
+      for (final item in items) item: 'N/A',
   };
 
   @override
@@ -298,6 +345,12 @@ class _ServiceReportFormScreenState extends State<ServiceReportFormScreen> {
   void dispose() {
     technicianController.dispose();
     notesController.dispose();
+    faultReasonController.dispose();
+    customerRemarksController.dispose();
+    officeUseController.dispose();
+    for (final c in reasonControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -452,8 +505,16 @@ class _ServiceReportFormScreenState extends State<ServiceReportFormScreen> {
         'liftId': liftId,
         'liftLabel': liftLabel(lift),
         'technician': technicianController.text.trim(),
+        'workType': workType,
         'checklist': checklist,
+        'checklistReasons': {
+          for (final e in reasonControllers.entries)
+            if (e.value.text.trim().isNotEmpty) e.key: e.value.text.trim(),
+        },
+        'faultReason': faultReasonController.text.trim(),
         'notes': notesController.text.trim(),
+        'customerRemarks': customerRemarksController.text.trim(),
+        'officeUse': officeUseController.text.trim(),
         'photoPaths': photoPaths,
         'technicianSignature': base64Encode(technicianSignature!),
         'customerSignature': base64Encode(customerSignature!),
@@ -549,6 +610,21 @@ class _ServiceReportFormScreenState extends State<ServiceReportFormScreen> {
                         : null,
                   ),
                   const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: workType,
+                    decoration: InputDecoration(
+                      labelText: t('Type of Work', 'ജോലിയുടെ തരം'),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(13)),
+                    ),
+                    items: ['Monthly Service', 'Callback', 'Other']
+                        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                        .toList(),
+                    onChanged: (v) => setState(() => workType = v ?? 'Monthly Service'),
+                  ),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: technicianController,
                     decoration: InputDecoration(
@@ -575,23 +651,52 @@ class _ServiceReportFormScreenState extends State<ServiceReportFormScreen> {
                       onTap: chooseDate,
                     ),
                   ),
-                  section(t('Monthly Maintenance Checklist', 'മാസ പരിശോധനാ പട്ടിക'),
+                  section(t('Maintenance Checklist', 'പരിശോധനാ പട്ടിക'),
                       Icons.checklist_rounded),
-                  ...checks.map((item) => CheckboxListTile(
-                        value: checklist[item] ?? false,
-                        onChanged: (v) =>
-                            setState(() => checklist[item] = v ?? false),
-                        dense: true,
-                        activeColor: blue,
-                        tileColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        title: Text(
-                          ml ? _checkMalayalam(item) : item,
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        controlAffinity: ListTileControlAffinity.leading,
-                      )),
+                  ...checklistGroups.entries.map((group) => Card(
+                    color: Colors.white,
+                    elevation: 0,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(group.key, style: const TextStyle(
+                            fontWeight: FontWeight.w800, color: navy, fontSize: 15)),
+                          const Divider(),
+                          ...group.value.map((item) {
+                            final reason = reasonControllers.putIfAbsent(
+                              item, () => TextEditingController());
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 5),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(item, style: const TextStyle(fontSize: 13)),
+                                  const SizedBox(height: 4),
+                                  Wrap(spacing: 5, children: ['Done','Not Done','N/A'].map((status) =>
+                                    ChoiceChip(
+                                      label: Text(status, style: const TextStyle(fontSize: 11)),
+                                      selected: checklist[item] == status,
+                                      onSelected: (_) => setState(() => checklist[item] = status),
+                                    )).toList()),
+                                  if (checklist[item] == 'Not Done')
+                                    TextFormField(
+                                      controller: reason,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Reason / action required',
+                                        isDense: true,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  )),
                   section(t('Service Photos', 'സർവീസ് ഫോട്ടോകൾ'),
                       Icons.photo_library_outlined),
                   OutlinedButton.icon(
@@ -653,20 +758,15 @@ class _ServiceReportFormScreenState extends State<ServiceReportFormScreen> {
                       }
                     },
                   ),
-                  section(t('Remarks / Notes', 'കുറിപ്പുകൾ'),
+                  section(t('Remarks & Fault Details', 'കുറിപ്പുകളും തകരാർ വിവരങ്ങളും'),
                       Icons.notes_outlined),
-                  TextFormField(
-                    controller: notesController,
-                    maxLines: 4,
-                    decoration: InputDecoration(
-                      hintText: t('Enter observations or pending work',
-                          'കണ്ടെത്തിയ കാര്യങ്ങളോ ബാക്കിയുള്ള ജോലികളോ രേഖപ്പെടുത്തുക'),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(13)),
-                    ),
-                  ),
+                  _reportTextField(notesController, t('Remarks', 'കുറിപ്പുകൾ')),
+                  const SizedBox(height: 8),
+                  _reportTextField(faultReasonController, t('Reason for Fault', 'തകരാറിന്റെ കാരണം')),
+                  const SizedBox(height: 8),
+                  _reportTextField(customerRemarksController, t('Remarks by Customer', 'കസ്റ്റമറുടെ കുറിപ്പുകൾ')),
+                  const SizedBox(height: 8),
+                  _reportTextField(officeUseController, t('For Office Use', 'ഓഫീസ് ഉപയോഗത്തിന്')),
                   const SizedBox(height: 25),
                   SizedBox(
                     height: 54,
@@ -691,6 +791,18 @@ class _ServiceReportFormScreenState extends State<ServiceReportFormScreen> {
             ),
     );
   }
+
+  Widget _reportTextField(TextEditingController controller, String label) =>
+      TextFormField(
+        controller: controller,
+        maxLines: 2,
+        decoration: InputDecoration(
+          labelText: label,
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(13)),
+        ),
+      );
 
   Widget _signatureButton(String label, bool signed, VoidCallback onTap) {
     return Card(
@@ -740,109 +852,149 @@ class ServiceReportDetailScreen extends StatelessWidget {
 
   Future<Uint8List> buildPdf() async {
     final doc = pw.Document();
-    final date = DateTime.tryParse((report['serviceDate'] ?? '').toString()) ??
-        DateTime.now();
+    final date = DateTime.tryParse((report['serviceDate'] ?? '').toString()) ?? DateTime.now();
     final checks = Map<String, dynamic>.from(report['checklist'] as Map? ?? {});
+    final reasons = Map<String, dynamic>.from(report['checklistReasons'] as Map? ?? {});
     final techSig = _decodeSignature(report['technicianSignature']);
     final custSig = _decodeSignature(report['customerSignature']);
+
+    String statusOf(dynamic value) {
+      if (value == true) return 'DONE';
+      if (value == false) return 'NOT DONE';
+      final v = (value ?? 'N/A').toString().toUpperCase();
+      if (v == 'DONE') return 'DONE';
+      if (v == 'NOT DONE') return 'NOT DONE';
+      if (v == 'N/A' || v == 'NA') return 'N/A';
+      return v;
+    }
+
+    pw.Widget info(String label, String value) => pw.Padding(
+      padding: const pw.EdgeInsets.all(3),
+      child: pw.Text('$label: $value', style: const pw.TextStyle(fontSize: 7)),
+    );
+
+    pw.Widget checklistColumn(String title, List<String> items) => pw.Container(
+      padding: const pw.EdgeInsets.all(4),
+      decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey600)),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.all(4),
+          color: PdfColors.grey300,
+          child: pw.Text(title.toUpperCase(),
+            style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+        ),
+        ...items.asMap().entries.map((entry) {
+          final item = entry.value;
+          final status = statusOf(checks[item]);
+          final reason = (reasons[item] ?? '').toString();
+          final legacyUnknown = !checks.containsKey(item);
+          return pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 2),
+            child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.SizedBox(width: 10, child: pw.Text('${entry.key + 1}.',
+                style: const pw.TextStyle(fontSize: 6))),
+              pw.Expanded(child: pw.Text(item, style: const pw.TextStyle(fontSize: 6))),
+              pw.SizedBox(width: 39, child: pw.Text(
+                legacyUnknown ? '-' : status,
+                textAlign: pw.TextAlign.right,
+                style: pw.TextStyle(fontSize: 5.5,
+                  color: status == 'DONE' ? PdfColors.green800 :
+                    (status == 'NOT DONE' ? PdfColors.red800 : PdfColors.grey700)),
+              )),
+            ]),
+          );
+        }),
+      ]),
+    );
+
     final photoWidgets = <pw.Widget>[];
-    final paths = List<String>.from(report['photoPaths'] ?? []);
-    for (final path in paths) {
+    for (final path in List<String>.from(report['photoPaths'] ?? [])) {
       try {
         final bytes = await File(path).readAsBytes();
         photoWidgets.add(pw.Container(
-          width: 220,
-          height: 150,
-          margin: const pw.EdgeInsets.only(right: 8, bottom: 8),
+          width: 230, height: 145, margin: const pw.EdgeInsets.all(5),
           child: pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.cover),
         ));
       } catch (_) {}
     }
 
+    final isNewChecklist = _ServiceReportFormScreenState.checklistGroups.values.expand((e) => e).any(checks.containsKey);
     doc.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.all(32),
+      margin: const pw.EdgeInsets.fromLTRB(22, 20, 22, 20),
       build: (_) => [
-        pw.Text((report['companyName'] ?? 'LiftCare Pro').toString(),
-            style: pw.TextStyle(
-                fontSize: 22, fontWeight: pw.FontWeight.bold)),
-        pw.SizedBox(height: 4),
-        pw.Text('MONTHLY LIFT MAINTENANCE SERVICE REPORT',
-            style: pw.TextStyle(
-                fontSize: 13, fontWeight: pw.FontWeight.bold)),
-        pw.Divider(),
-        pw.Text('Report No: ${report['reportNo'] ?? ''}'),
-        pw.Text('Service Date: ${DateFormat('dd MMMM yyyy').format(date)}'),
-        pw.SizedBox(height: 12),
-        pw.Text('CUSTOMER & LIFT DETAILS',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-        pw.Text('Customer: ${report['customerName'] ?? ''}'),
-        pw.Text('Phone: ${report['customerPhone'] ?? ''}'),
-        pw.Text('Lift: ${report['liftLabel'] ?? ''}'),
-        pw.Text('Technician: ${report['technician'] ?? ''}'),
-        pw.SizedBox(height: 14),
-        pw.Text('MAINTENANCE CHECKLIST',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        pw.Center(child: pw.Text(
+          (report['companyName'] ?? 'LiftCare Pro').toString().toUpperCase(),
+          style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold))),
+        pw.SizedBox(height: 2),
+        pw.Center(child: pw.Text('LIFT MAINTENANCE SERVICE REPORT',
+          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))),
+        pw.Divider(thickness: 1),
+        pw.Row(children: [
+          pw.Expanded(child: info('Serial No', (report['reportNo'] ?? '').toString())),
+          pw.Expanded(child: info('Date', DateFormat('dd/MM/yyyy').format(date))),
+          pw.Expanded(child: info('Type of Work', (report['workType'] ?? 'Monthly Service').toString())),
+        ]),
+        pw.Row(children: [
+          pw.Expanded(child: info('Customer', (report['customerName'] ?? '').toString())),
+          pw.Expanded(child: info('Phone', (report['customerPhone'] ?? '').toString())),
+        ]),
+        pw.Row(children: [
+          pw.Expanded(child: info('Lift', (report['liftLabel'] ?? '').toString())),
+          pw.Expanded(child: info('Technician / Engineer', (report['technician'] ?? '').toString())),
+        ]),
+        pw.SizedBox(height: 5),
+        if (isNewChecklist)
+          pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Expanded(child: checklistColumn('Machine Room',
+              _ServiceReportFormScreenState.checklistGroups['Machine Room']!)),
+            pw.SizedBox(width: 5),
+            pw.Expanded(child: checklistColumn('General & Car',
+              _ServiceReportFormScreenState.checklistGroups['General & Car']!)),
+            pw.SizedBox(width: 5),
+            pw.Expanded(child: checklistColumn('Car Top & Pit',
+              _ServiceReportFormScreenState.checklistGroups['Car Top & Pit']!)),
+          ])
+        else
+          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Text('PREVIOUS CHECKLIST', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+            ...checks.entries.map((e) => pw.Text(
+              '${e.key}  -  ${statusOf(e.value)}',
+              style: const pw.TextStyle(fontSize: 7))),
+          ]),
         pw.SizedBox(height: 6),
-        ...checks.entries.map((e) => pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(vertical: 3),
-              child: pw.Row(children: [
-                pw.Container(
-                  width: 13,
-                  height: 13,
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.grey700),
-                    color: e.value == true ? PdfColors.green : PdfColors.white,
-                  ),
-                ),
-                pw.SizedBox(width: 8),
-                pw.Expanded(child: pw.Text(e.key, style: const pw.TextStyle(fontSize: 9))),
-                pw.Text(e.value == true ? 'DONE' : 'NOT DONE',
-                    style: const pw.TextStyle(fontSize: 8)),
-              ]),
-            )),
-        pw.SizedBox(height: 14),
-        pw.Text('REMARKS / PENDING WORK',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-        pw.Text((report['notes'] ?? '').toString().isEmpty
-            ? 'No additional remarks'
-            : report['notes'].toString()),
+        pw.Text('REMARKS: ${(report['notes'] ?? '').toString()}',
+          style: const pw.TextStyle(fontSize: 7)),
+        pw.Text('REASON FOR FAULT: ${(report['faultReason'] ?? '').toString()}',
+          style: const pw.TextStyle(fontSize: 7)),
+        pw.Text('REMARKS BY CUSTOMER: ${(report['customerRemarks'] ?? '').toString()}',
+          style: const pw.TextStyle(fontSize: 7)),
+        pw.Text('FOR OFFICE USE: ${(report['officeUse'] ?? '').toString()}',
+          style: const pw.TextStyle(fontSize: 7)),
+        pw.SizedBox(height: 8),
+        pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+          pw.Expanded(child: pw.Column(children: [
+            if (techSig != null) pw.Image(pw.MemoryImage(techSig), height: 35),
+            pw.Divider(),
+            pw.Text('Technician / Engineer Signature', style: const pw.TextStyle(fontSize: 7)),
+          ])),
+          pw.SizedBox(width: 18),
+          pw.Expanded(child: pw.Column(children: [
+            if (custSig != null) pw.Image(pw.MemoryImage(custSig), height: 35),
+            pw.Divider(),
+            pw.Text('Customer Signature with Seal', style: const pw.TextStyle(fontSize: 7)),
+          ])),
+        ]),
         if (photoWidgets.isNotEmpty) ...[
-          pw.SizedBox(height: 14),
-          pw.Text('SERVICE PHOTOS',
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 7),
+          pw.NewPage(),
+          pw.Text('SERVICE PHOTOS', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
           pw.Wrap(children: photoWidgets),
         ],
-        pw.SizedBox(height: 22),
-        pw.Text('SIGNATURES',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-        pw.SizedBox(height: 8),
-        pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            if (techSig != null)
-              pw.Expanded(
-                child: pw.Column(children: [
-                  pw.Image(pw.MemoryImage(techSig), height: 55),
-                  pw.Divider(),
-                  pw.Text('Technician Signature'),
-                ]),
-              ),
-            pw.SizedBox(width: 25),
-            if (custSig != null)
-              pw.Expanded(
-                child: pw.Column(children: [
-                  pw.Image(pw.MemoryImage(custSig), height: 55),
-                  pw.Divider(),
-                  pw.Text('Customer Signature'),
-                ]),
-              ),
-          ],
-        ),
-        pw.SizedBox(height: 24),
-        pw.Text('Generated by LiftCare Pro • Offline Service Record',
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+        pw.SizedBox(height: 5),
+        pw.Align(alignment: pw.Alignment.centerRight,
+          child: pw.Text('LiftCare Pro • Offline Service Record',
+            style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey700))),
       ],
     ));
     return doc.save();
@@ -894,7 +1046,7 @@ class ServiceReportDetailScreen extends StatelessWidget {
     final date = DateTime.tryParse((report['serviceDate'] ?? '').toString()) ??
         DateTime.now();
     final checks = Map<String, dynamic>.from(report['checklist'] as Map? ?? {});
-    final done = checks.values.where((v) => v == true).length;
+    final done = checks.values.where((v) => v == true || v.toString() == 'Done').length;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FB),
       appBar: AppBar(
@@ -917,6 +1069,7 @@ class ServiceReportDetailScreen extends StatelessWidget {
                           fontWeight: FontWeight.w800, fontSize: 18)),
                   const SizedBox(height: 12),
                   _line(t('Customer', 'കസ്റ്റമർ'), report['customerName']),
+                  _line(t('Type of Work', 'ജോലിയുടെ തരം'), report['workType'] ?? 'Monthly Service'),
                   _line(t('Phone', 'ഫോൺ'), report['customerPhone']),
                   _line(t('Lift', 'ലിഫ്റ്റ്'), report['liftLabel']),
                   _line(t('Technician', 'ടെക്നീഷ്യൻ'), report['technician']),
@@ -926,25 +1079,35 @@ class ServiceReportDetailScreen extends StatelessWidget {
                   const Divider(height: 25),
                   Text(t('Maintenance Checklist', 'പരിശോധനാ പട്ടിക'),
                       style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ...checks.entries.map((e) => ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                          e.value == true
-                              ? Icons.check_circle
-                              : Icons.cancel_outlined,
-                          color: e.value == true ? Colors.green : Colors.red,
-                        ),
-                        title: Text(e.key, style: const TextStyle(fontSize: 13)),
-                        trailing: Text(e.value == true ? 'Done' : 'Pending',
-                            style: const TextStyle(fontSize: 11)),
-                      )),
+                  ...checks.entries.map((e) {
+                    final status = e.value == true ? 'Done' :
+                        e.value == false ? 'Not Done' : e.value.toString();
+                    final reasons = Map<String, dynamic>.from(
+                        report['checklistReasons'] as Map? ?? {});
+                    final reason = (reasons[e.key] ?? '').toString();
+                    final good = status == 'Done';
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        good ? Icons.check_circle :
+                          status == 'N/A' ? Icons.remove_circle_outline : Icons.cancel_outlined,
+                        color: good ? Colors.green :
+                          status == 'N/A' ? Colors.blueGrey : Colors.red,
+                      ),
+                      title: Text(e.key, style: const TextStyle(fontSize: 13)),
+                      subtitle: reason.isEmpty ? null : Text('Reason: $reason'),
+                      trailing: Text(status, style: const TextStyle(fontSize: 11)),
+                    );
+                  }),
                   const Divider(),
                   Text(t('Remarks', 'കുറിപ്പുകൾ'),
                       style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text((report['notes'] ?? '').toString().isEmpty
-                      ? '-'
-                      : report['notes'].toString()),
+                  Text((report['notes'] ?? '').toString().isEmpty ? '-' : report['notes'].toString()),
+                  const SizedBox(height: 8),
+                  _line(t('Reason for Fault', 'തകരാറിന്റെ കാരണം'), report['faultReason']),
+                  _line(t('Customer Remarks', 'കസ്റ്റമർ കുറിപ്പുകൾ'), report['customerRemarks']),
+                  _line(t('Office Use', 'ഓഫീസ് ഉപയോഗത്തിന്'), report['officeUse']),
                   const SizedBox(height: 14),
                   Text(t('Photos', 'ഫോട്ടോകൾ'),
                       style: const TextStyle(fontWeight: FontWeight.bold)),
